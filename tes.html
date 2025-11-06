@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Antares Smart Garden Dashboard</title>
+  <style>
+    body {font-family: Arial, sans-serif; margin: 0; padding: 0; background: #eef2f3; color: #333;}
+    header {background: #2b5876; color: white; padding: 1em; text-align: center;}
+    main {padding: 1em; display: flex; flex-direction: column; gap: 1em;}
+    .card {background: white; border-radius: 10px; padding: 1em; box-shadow: 0 2px 5px rgba(0,0,0,0.1);}
+    label {display: block; margin-top: 0.5em;}
+    input, button, select {padding: 0.5em; margin-top: 0.25em; width: 100%; max-width: 400px;}
+    button {background: #2b5876; color: white; border: none; border-radius: 5px; cursor: pointer;}
+    button:hover {background: #4e4376;}
+    .data-display {display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1em;}
+    .data-box {background: #f8f9fa; padding: 1em; border-radius: 8px; text-align: center;}
+    #log {background: black; color: #0f0; font-family: monospace; height: 120px; overflow-y: auto; padding: 0.5em;}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Smart Garden Dashboard (Antares IoT)</h1>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Configuration</h2>
+      <label>Access Key: <input id="accessKey" type="text" placeholder="Antares Access Key"></label>
+      <label>App Name: <input id="app" type="text" placeholder="Smart_Garden1"></label>
+      <label>Device Name: <input id="device" type="text" placeholder="Smart_Garden"></label>
+      <label>Polling Interval (seconds): <input id="pollInterval" type="number" value="5"></label>
+      <button id="btnConnect">Connect (fetch)</button>
+      <button id="btnMqConnect">Connect (MQTT)</button>
+      <p id="modeLabel">Mode: idle</p>
+    </section>
+
+    <section class="card">
+      <h2>Sensor Data</h2>
+      <div class="data-display">
+        <div class="data-box"><h3>Suhu (°C)</h3><p id="temp">--</p></div>
+        <div class="data-box"><h3>Kelembapan Udara (%)</h3><p id="hum">--</p></div>
+        <div class="data-box"><h3>Kelembapan Tanah (%)</h3><p id="soil">--</p></div>
+        <div class="data-box"><h3>Status Pompa</h3><p id="pump">--</p></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Manual Control</h2>
+      <button onclick="sendCommand('ON')">Pompa ON</button>
+      <button onclick="sendCommand('OFF')">Pompa OFF</button>
+    </section>
+
+    <section class="card">
+      <h2>Logs</h2>
+      <div id="log"></div>
+    </section>
+  </main>
+
+  <script>
+    const CONFIG = {ACCESS_KEY:'', APP:'', DEVICE:''};
+    let fetchInterval;
+
+    function log(msg){
+      const logDiv = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      logDiv.innerHTML += `[${time}] ${msg}<br>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+       async function fetchLatest() {
+  const url = `http://localhost:3000/fetch?appName=${CONFIG.APP}&device=${CONFIG.DEVICE}&key=${CONFIG.ACCESS_KEY}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'X-M2M-Origin': CONFIG.ACCESS_KEY,
+        'Accept': 'application/json'
+      }
+    });
+    const data = await res.json();
+
+    // ✅ Deteksi struktur Antares
+    if (data['m2m:cin'] && data['m2m:cin'].con) {
+      const con = data['m2m:cin'].con;
+log('Data diterima dari Antares (m2m:cin.con): ' + con);
+parseAndDisplay(con);
+
+     } else {
+          log('Format tidak dikenali: ' + JSON.stringify(data));
+        }
+      } catch (e) {
+        log('Fetch error: ' + e);
+      }
+    }
+
+
+
+   function parseAndDisplay(con) {
+  try {
+    const parsed = typeof con === 'string' ? JSON.parse(con) : con;
+    log('✅ Parsed object: ' + JSON.stringify(parsed));
+
+    // Tangani kemungkinan key berbeda (huruf besar / kecil)
+    const suhu = parsed.T ?? parsed.t ?? parsed.temp ?? parsed.Temperature;
+    const kelembapan = parsed.H ?? parsed.h ?? parsed.hum ?? parsed.Humidity;
+    const tanah = parsed.Soil ?? parsed.soil ?? parsed.soilMoisture;
+    const pompa = parsed.Pompa ?? parsed.pompa ?? parsed.Pump ?? parsed.pump;
+
+    document.getElementById('temp').innerText = 
+      suhu !== undefined ? suhu.toFixed(1) + ' °C' : '--';
+    document.getElementById('hum').innerText = 
+      kelembapan !== undefined ? kelembapan.toFixed(1) + ' %' : '--';
+    document.getElementById('soil').innerText = 
+      tanah !== undefined ? tanah + ' %' : '--';
+    document.getElementById('pump').innerText = 
+      pompa !== undefined ? pompa : '--';
+
+  } catch (err) {
+    log('❌ Gagal parsing JSON, isi mentah: ' + con);
+  }
+}
+
+
+
+
+    function startPolling(interval){
+      clearInterval(fetchInterval);
+      fetchLatest();
+      fetchInterval = setInterval(fetchLatest, interval * 1000);
+      document.getElementById('modeLabel').innerText = 'Mode: REST fetch every ' + interval + 's';
+    }
+
+    function sendCommand(cmd){
+      log('Sending command: ' + cmd);
+      // tambahkan fungsi POST atau MQTT publish di sini jika ingin kirim perintah
+    }
+
+    function loadPahoAndConnect(key, app, device){
+      log('Connecting via MQTT...');
+      // nanti bisa ditambah MQTT WebSocket client
+    }
+
+    // ✅ pastikan tombol aktif setelah DOM siap
+    window.addEventListener('DOMContentLoaded', () => {
+      const btnFetch = document.getElementById('btnConnect');
+      const btnMq = document.getElementById('btnMqConnect');
+
+      btnFetch.onclick = () => {
+        CONFIG.APP = document.getElementById('app').value.trim();
+        CONFIG.DEVICE = document.getElementById('device').value.trim();
+        CONFIG.ACCESS_KEY = document.getElementById('accessKey').value.trim();
+        const interval = Number(document.getElementById('pollInterval').value);
+        log('Fetch button clicked. Starting polling...');
+        startPolling(interval);
+      };
+
+      btnMq.onclick = () => {
+        CONFIG.APP = document.getElementById('app').value.trim();
+        CONFIG.DEVICE = document.getElementById('device').value.trim();
+        CONFIG.ACCESS_KEY = document.getElementById('accessKey').value.trim();
+        document.getElementById('modeLabel').innerText = 'mqtt connecting...';
+        loadPahoAndConnect(CONFIG.ACCESS_KEY, CONFIG.APP, CONFIG.DEVICE);
+      };
+    });
+  </script>
+</body>
+</html>
