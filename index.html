@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Antares Smart Garden — Dashboard</title>
+
+<!-- XLSX for download -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root{
+  --bg-start: #0f172a; --bg-mid:#1e293b; --bg-end:#334155;
+  --card-bg: rgba(255,255,255,0.95); --text-1:#1e293b; --text-2:#64748b; --text-3:#94a3b8;
+  --border:#e2e8f0; --input-bg:white; --green:#22c55e; --green-dark:#16a34a; --red:#ef4444; --shadow: rgba(0,0,0,0.1);
+}
+[data-theme="dark"]{
+  --bg-start:#0a0f1e; --bg-mid:#111827; --bg-end:#1e293b; --card-bg: rgba(30,41,59,0.95);
+  --text-1:#f1f5f9; --text-2:#cbd5e1; --text-3:#94a3b8; --border:#334155; --input-bg:#1e293b; --shadow: rgba(0,0,0,0.3);
+}
+body{
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: linear-gradient(135deg,var(--bg-start) 0%, var(--bg-mid) 50%, var(--bg-end) 100%);
+  min-height:100vh; padding:20px; color:var(--text-1);
+}
+.theme-toggle{ position:fixed; top:20px; right:20px; z-index:1000; background:var(--card-bg); border:2px solid var(--border);
+  border-radius:50px; padding:10px 16px; cursor:pointer; font-weight:700; color:var(--text-1); box-shadow:0 4px 20px var(--shadow);
+}
+.page{ display:none } .page.active{ display:block }
+
+/* container */
+.login-container{ max-width:520px; margin:48px auto; background:var(--card-bg); border-radius:28px; padding:40px; box-shadow:0 30px 80px var(--shadow);}
+.logo{ text-align:center; margin-bottom:18px } .logo-icon{ font-size:3em; display:block; margin-bottom:8px;}
+h1{ font-size:1.8em; background:linear-gradient(135deg,var(--green),var(--green-dark)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; text-align:center; margin-bottom:6px;}
+.subtitle{ text-align:center; color:var(--text-2); margin-bottom:22px; font-weight:500;}
+
+/* form */
+.form-group{ margin-bottom:16px } label{ display:block; margin-bottom:8px; color:var(--text-1); font-weight:700; font-size:0.9em;}
+input, select{ width:100%; padding:12px; border:2px solid var(--border); border-radius:12px; font-size:15px; background:var(--input-bg); color:var(--text-1);}
+.btn{ width:100%; padding:14px; background:linear-gradient(135deg,var(--green),var(--green-dark)); color:white; border:none; border-radius:12px; font-weight:700; cursor:pointer; box-shadow:0 8px 24px rgba(34,197,94,0.35);}
+.btn-secondary{ background:var(--card-bg); color:var(--red); border:2px solid var(--red); box-shadow:none; }
+.btn-disconnect{ padding:10px 18px; background:var(--card-bg); color:var(--red); border:2px solid var(--red); border-radius:50px; cursor:pointer; font-weight:700;}
+
+/* dashboard */
+.dashboard{ max-width:1200px; margin:20px auto; }
+.header{ background:var(--card-bg); border-radius:20px; padding:20px; margin-bottom:18px; box-shadow:0 10px 40px var(--shadow); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;}
+.header h1{ font-size:1.3em; margin-bottom:2px }
+.status{ display:flex; gap:12px; align-items:center;}
+.badge{ padding:8px 14px; border-radius:50px; font-weight:700; background:linear-gradient(135deg,var(--green),var(--green-dark)); color:white; display:flex; align-items:center; gap:8px;}
+.pulse{ width:8px; height:8px; background:white; border-radius:50%; animation:pulse 2s infinite;}
+@keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:0.5}}
+
+/* sensors */
+.sensors{ display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:18px;}
+.card{ background:var(--card-bg); border-radius:16px; padding:18px; box-shadow:0 10px 40px var(--shadow); border:1px solid var(--border);}
+.card-header{ display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+.icon{ font-size:1.6em; width:46px; height:46px; display:flex; align-items:center; justify-content:center; background:rgba(34,197,94,0.08); border-radius:10px;}
+.card-title{ font-size:0.75em; color:var(--text-2); font-weight:700; text-transform:uppercase;}
+.value{ font-size:2.2em; font-weight:800; color:var(--text-1); } .unit{ font-size:0.45em; color:var(--text-3); margin-left:6px;}
+
+/* logs/history */
+.logs{ background:var(--card-bg); border-radius:16px; padding:18px; box-shadow:0 10px 40px var(--shadow); margin-bottom:16px;}
+.logs-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:10px; flex-wrap:wrap;}
+.history-table-container{ overflow:auto; max-height:380px; border:2px solid var(--border); border-radius:12px; margin-bottom:12px; background:var(--input-bg);}
+.history-table{ width:100%; border-collapse:collapse; font-size:0.9em; }
+.history-table thead{ position:sticky; top:0; background:linear-gradient(135deg,var(--green),var(--green-dark)); color:white; z-index:5;}
+.history-table th, .history-table td{ padding:10px; text-align:left; border-bottom:1px solid var(--border); color:var(--text-1);}
+#log{ background:var(--input-bg); border:2px solid var(--border); border-radius:12px; padding:12px; max-height:220px; overflow:auto; font-family:monospace; font-size:0.85em; color:var(--text-1);}
+
+/* responsive */
+@media(max-width:768px){
+  .header{ flex-direction:column; align-items:stretch }
+  .sensors{ grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
+  <span id="themeIcon">🌙</span> <span id="themeText">Dark Mode</span>
+</button>
+
+<!-- LOGIN / CONNECT -->
+<div id="loginPage" class="page active">
+  <div class="login-container">
+    <div class="logo">
+      <span class="logo-icon">🌱</span>
+      <h1>ANTARES SMART GARDEN</h1>
+      <p class="subtitle">Antares IoT — Real API mode</p>
+    </div>
+
+    <div id="dt1" style="text-align:center; color:var(--text-3); margin-bottom:12px;"></div>
+
+    <div class="form-group">
+      <label>Application Name (Antares App Name)</label>
+      <input id="app" placeholder="contoh: antares-id / your-app">
+    </div>
+
+    <div class="form-group">
+      <label>Device Name</label>
+      <input id="device" placeholder="device id">
+    </div>
+
+    <div class="form-group">
+      <label>Access Key (X-M2M-Origin)</label>
+      <input id="accessKey" placeholder="Your Antares access key (origin)">
+    </div>
+
+    <div class="form-group">
+      <label>Polling Interval</label>
+      <select id="pollInterval">
+        <option value="5">5 seconds</option>
+        <option value="10" selected>10 seconds</option>
+        <option value="15">15 seconds</option>
+        <option value="30">30 seconds</option>
+        <option value="60">1 minute</option>
+      </select>
+    </div>
+
+    <div style="display:flex; gap:12px;">
+      <button class="btn" onclick="connect()">Connect</button>
+      <button class="btn btn-secondary" onclick="openProxyGuide()">Proxy Guide</button>
+    </div>
+
+    <p style="margin-top:12px; color:var(--text-3); font-size:0.9em;">
+      Catatan: browser mungkin memblokir request ke Antares karena CORS. Jika error CORS muncul, gunakan proxy lokal (lihat Proxy Guide).
+    </p>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboardPage" class="page">
+  <div class="dashboard">
+    <div class="header">
+      <div>
+        <h1>SMART GARDEN DASHBOARD</h1>
+        <p class="subtitle">Realtime data dari Antares</p>
+        <div id="dt2" style="margin-top:6px; color:var(--text-3); font-size:0.9em;"></div>
+      </div>
+
+      <div class="status">
+        <div id="statusBadge" class="badge"><span class="pulse"></span><span id="statusText">Disconnected</span></div>
+        <button class="btn-disconnect" onclick="disconnect()">🔌 Disconnect</button>
+      </div>
+    </div>
+
+    <div class="sensors">
+      <div class="card">
+        <div class="card-header"><div class="icon">🌡️</div><div class="card-title">Suhu</div></div>
+        <div class="value" id="temp">-- <span class="unit">°C</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="icon">💧</div><div class="card-title">Kelembapan Udara</div></div>
+        <div class="value" id="hum">-- <span class="unit">%</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="icon">🌾</div><div class="card-title">Kelembapan Tanah</div></div>
+        <div class="value" id="soil">-- <span class="unit">%</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="icon">💦</div><div class="card-title">Status Pompa</div></div>
+        <div class="value" id="pump">--</div>
+      </div>
+    </div>
+
+    <div class="logs">
+      <div class="logs-header">
+        <h2>Data History</h2>
+        <div style="display:flex; gap:18px; align-items:center;">
+          <div style="text-align:right;">
+            <div style="font-size:0.7em; color:var(--text-3); font-weight:700">Total Records</div>
+            <div id="totalRecords" style="font-weight:800; font-size:1.2em; background:linear-gradient(135deg,var(--green),var(--green-dark)); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">0</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:0.7em; color:var(--text-3); font-weight:700">Last Update</div>
+            <div id="lastUpdate" style="font-weight:800; font-size:1.2em; color:var(--text-1)">--</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="history-table-container">
+        <table class="history-table" id="historyTable">
+          <thead>
+            <tr>
+              <th>No</th><th>Tanggal</th><th>Waktu</th><th>Suhu (°C)</th><th>Kelembapan Udara (%)</th><th>Kelembapan Tanah (%)</th><th>Status Pompa</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr><td colspan="7" style="text-align:center; color:var(--text-3); padding:28px;">📭 Belum ada data. Tekan Connect untuk mulai.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex; gap:12px;">
+        <button class="btn" onclick="downloadExcel()">Download History (Excel)</button>
+        <button class="btn btn-secondary" onclick="clearHistory()">Clear History</button>
+      </div>
+    </div>
+
+    <div class="logs">
+      <div class="logs-header"><h2>System Logs</h2></div>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  Antares Smart Garden - Single-file (REAL API mode)
+  - Tries proxy first: http://<hostname>:3000/fetch?appName=...&device=...&key=...
+  - If proxy not reachable, attempts direct Antares GET (may fail due to CORS)
+  - Persists history to localStorage (key: antares-smart-garden-history)
+*/
+
+// CONFIG & STATE
+const cfg = { app:'', dev:'', key:'', interval:10, useProxy:true };
+let timer = null;
+let history = [];
+
+// Utilities: storage fallback (localStorage by default)
+const STORAGE_KEY = 'antares-smart-garden-history-v1';
+
+function persistSave(){
+  try {
+    const payload = { history, lastSaved: new Date().toISOString() };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    log('💾 History disimpan ke localStorage (' + history.length + ' records)');
+  } catch (e) {
+    console.error('Gagal simpan history:', e);
+    log('❌ Gagal menyimpan history: ' + e.message);
+  }
+}
+
+function persistLoad(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.history)) {
+      history = parsed.history;
+      log('📂 Memuat ' + history.length + ' record dari localStorage');
+    }
+  } catch (e) {
+    console.warn('persistLoad error', e);
+  }
+}
+
+function persistClear(){
+  localStorage.removeItem(STORAGE_KEY);
+  history = [];
+  updateHistoryTable();
+  document.getElementById('totalRecords').textContent = '0';
+  document.getElementById('lastUpdate').textContent = '--';
+  log('🗑️ History dihapus (localStorage)'); 
+}
+
+// Logging
+function log(msg){
+  const t = new Date().toLocaleTimeString('id-ID');
+  const el = document.getElementById('log');
+  el.innerHTML += `[${t}] ${msg}<br>`;
+  el.scrollTop = el.scrollHeight;
+  console.log(msg);
+}
+
+// DateTime display
+function updateDT(){
+  const dt = new Date().toLocaleString('id-ID', {
+    weekday:'long', year:'numeric', month:'long', day:'numeric',
+    hour:'2-digit', minute:'2-digit', second:'2-digit'
+  });
+  const s = '🕐 ' + dt;
+  const e1 = document.getElementById('dt1');
+  const e2 = document.getElementById('dt2');
+  if (e1) e1.textContent = s;
+  if (e2) e2.textContent = s;
+}
+
+// History table render
+function updateHistoryTable(){
+  const tbody = document.getElementById('historyBody');
+  if (!tbody) return;
+  if (history.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-3); padding:28px;">📭 Belum ada data. Tekan Connect untuk mulai.</td></tr>`;
+    return;
+  }
+  const display = history.slice(-200).reverse(); // show up to last 200 latest
+  tbody.innerHTML = display.map((it, idx) => `
+    <tr>
+      <td>${it.No}</td>
+      <td>${it.Tanggal}</td>
+      <td>${it.Waktu}</td>
+      <td>${it['Suhu (°C)']}</td>
+      <td>${it['Kelembapan Udara (%)']}</td>
+      <td>${it['Kelembapan Tanah (%)']}</td>
+      <td>${it['Status Pompa']}</td>
+    </tr>
+  `).join('');
+}
+
+// Helper: try fetch with proxy first, then direct
+async function fetchFromAntares(){
+  // two modes: proxy (recommended), direct Antares (may CORS)
+  
+  const proxyUrl = `http://192.168.1.10:3000/fetch?appName=${encodeURIComponent(cfg.app)}&device=${encodeURIComponent(cfg.dev)}&key=${encodeURIComponent(cfg.key)}`;
+
+  const antaresDirect = `https://platform.antares.id:8443/~/antares-cse/antares-id/${encodeURIComponent(cfg.app)}/${encodeURIComponent(cfg.dev)}/la`;
+
+  // prefer proxy to avoid CORS
+  if (cfg.useProxy) {
+    try {
+      log('⬆️ Mencoba fetch via proxy: ' + proxyUrl);
+      const r = await fetch(proxyUrl, {method:'GET', headers:{'Accept':'application/json'} , cache:'no-store'});
+      if (!r.ok) throw new Error('Proxy fetch failed: ' + r.status);
+      const data = await r.json();
+      return data;
+    } catch (e) {
+      log('⚠️ Proxy fetch gagal: ' + e.message + ' — mencoba direct Antares (CORS mungkin terjadi).');
+      cfg.useProxy = false; // fallback to direct next
+    }
+  }
+
+  // direct attempt
+  try {
+    log('⬆️ Mencoba fetch langsung ke Antares: ' + antaresDirect);
+    const r = await fetch(antaresDirect, { method:'GET', headers: {'X-M2M-Origin': cfg.key, 'Accept':'application/json'} , cache:'no-store' });
+    if (!r.ok) throw new Error('Antares direct fetch failed: ' + r.status);
+    const data = await r.json();
+    return data;
+  } catch (e) {
+    throw e;
+  }
+}
+
+// Parse response from Antares (m2m:cin)
+function parseAntaresResponse(data) {
+  // data may be object containing 'm2m:cin' or array or 'm2m:cnt' etc.
+  // We support fetching last content instance (la) which returns 'm2m:cin'
+  const cin = data?.['m2m:cin'] ? data['m2m:cin'] : (Array.isArray(data) && data.length ? data[0] : null);
+  if (!cin) return null;
+
+  let con = cin.con ?? null;
+  if (typeof con === 'string') {
+    try { con = JSON.parse(con); } catch(e) { /* keep string */ }
+  }
+
+  // support common names: T / temp, H / hum, Soil / soil, Pump / pompa
+  const temp = Number(con?.T ?? con?.temp ?? con?.Temperature ?? con?.temperature ?? NaN);
+  const hum = Number(con?.H ?? con?.hum ?? con?.Humidity ?? con?.humidity ?? NaN);
+  const soil = (con?.Soil ?? con?.soil ?? con?.Moisture ?? con?.moisture ?? null);
+  const pump = (con?.Pump ?? con?.pompa ?? con?.pump ?? con?.P ?? null);
+
+  return { temp: isFinite(temp) ? temp : null, hum: isFinite(hum) ? hum : null, soil, pump, raw: con };
+}
+
+// Main fetch+update
+async function fetch2(){
+  try {
+    const data = await fetchFromAntares();
+    if (!data) {
+      log('❌ Response kosong dari Antares');
+      return;
+    }
+
+    const parsed = parseAntaresResponse(data);
+    if (!parsed) {
+      log('❌ Format response tidak dikenali. Lihat raw pada log.');
+      log(JSON.stringify(data).slice(0,1000));
+      return;
+    }
+
+    // Update UI
+    const { temp, hum, soil, pump } = parsed;
+    const now = new Date();
+    document.getElementById('temp').innerHTML = temp != null ? (Number(temp).toFixed(1) + '<span class="unit">°C</span>') : '-- <span class="unit">°C</span>';
+    document.getElementById('hum').innerHTML = hum != null ? (Number(hum).toFixed(1) + '<span class="unit">%</span>') : '-- <span class="unit">%</span>';
+    document.getElementById('soil').innerHTML = soil != null ? (String(soil) + '<span class="unit">%</span>') : '-- <span class="unit">%</span>';
+    document.getElementById('pump').textContent = pump != null ? String(pump) : '--';
+
+    // push to history
+    const record = {
+      No: history.length + 1,
+      Tanggal: now.toLocaleDateString('id-ID'),
+      Waktu: now.toLocaleTimeString('id-ID'),
+      'Suhu (°C)': temp != null ? Number(temp.toFixed(1)) : '-',
+      'Kelembapan Udara (%)': hum != null ? Number(hum.toFixed(1)) : '-',
+      'Kelembapan Tanah (%)': soil != null ? soil : '-',
+      'Status Pompa': pump != null ? pump : '-'
+    };
+    history.push(record);
+
+    document.getElementById('totalRecords').textContent = history.length;
+    document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('id-ID');
+    updateHistoryTable();
+
+    // persist
+    persistSave();
+
+    log('✅ Data diterima & disimpan (Total: ' + history.length + ')');
+
+  } catch (e) {
+    log('❌ Error fetch: ' + (e.message || e));
+    // detect CORS (Failed to fetch) vs HTTP status
+    if (e.message && e.message.toLowerCase().includes('failed to fetch')) {
+      log('⚠️ Kemungkinan CORS atau jaringan. Coba jalankan proxy lokal (lihat Proxy Guide).');
+    }
+  }
+}
+
+// CONNECT / DISCONNECT
+async function connect(){
+  cfg.app = document.getElementById('app').value.trim();
+  cfg.dev = document.getElementById('device').value.trim();
+  cfg.key = document.getElementById('accessKey').value.trim();
+  cfg.interval = Number(document.getElementById('pollInterval').value) || 10;
+
+  if (!cfg.app || !cfg.dev || !cfg.key) {
+    alert('⚠️ Mohon isi Application Name, Device Name, dan Access Key.');
+    return;
+  }
+
+  // clear old timer
+  if (timer) clearInterval(timer);
+
+  // load history
+  persistLoad();
+  document.getElementById('totalRecords').textContent = history.length;
+  if (history.length > 0) {
+    const last = history[history.length - 1];
+    document.getElementById('lastUpdate').textContent = last?.Waktu ?? '--';
+    updateHistoryTable();
+  }
+
+  // update UI state
+  document.getElementById('loginPage').classList.remove('active');
+  document.getElementById('dashboardPage').classList.add('active');
+  document.getElementById('statusText').textContent = `Connecting (${cfg.interval}s)`;
+  log('🚀 Mulai monitoring — interval ' + cfg.interval + 's');
+
+  // initial fetch then interval
+  await fetch2();
+  timer = setInterval(fetch2, cfg.interval * 1000);
+}
+
+async function disconnect(){
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  persistSave();
+  document.getElementById('dashboardPage').classList.remove('active');
+  document.getElementById('loginPage').classList.add('active');
+  document.getElementById('statusText').textContent = 'Disconnected';
+  log('🔌 Terputus dari Antares');
+}
+
+// Download Excel
+function downloadExcel(){
+  if (history.length === 0) { alert('⚠️ Tidak ada data untuk di-download'); return; }
+  try {
+    const ws = XLSX.utils.json_to_sheet(history);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'History');
+    const fn = `SmartGarden_History_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.xlsx`;
+    XLSX.writeFile(wb, fn);
+    log('📥 Excel dibuat: ' + fn);
+    alert('✅ Download berhasil — ' + fn);
+  } catch(e) {
+    log('❌ Error membuat Excel: ' + e.message);
+    alert('❌ Gagal membuat file Excel');
+  }
+}
+
+// Clear history
+function clearHistory(){
+  if (history.length === 0) { alert('⚠️ Tidak ada data untuk dihapus'); return; }
+  if (!confirm(`⚠️ Hapus semua ${history.length} record? Tindakan ini tidak dapat dibatalkan.`)) return;
+  persistClear();
+  alert('✅ History terhapus');
+}
+
+// Proxy guide helper
+function openProxyGuide(){
+  const msg = `Proxy guide singkat:
+1) Buat file simple Node.js (express) yang meneruskan request ke Antares:
+   GET /fetch?appName=...&device=...&key=...
+   lalu server membuat request ke Antares dengan header 'X-M2M-Origin': key
+2) Jalankan di mesin yang sama, mis: node proxy.js
+3) Jika butuh, expose ke internet dengan ngrok (http) agar perangkat lain bisa akses.
+-- Contoh proxy cepat: https://gist.github.com (tidak disertakan di sini).`;
+  alert(msg);
+}
+
+// Theme toggle
+function toggleTheme(){
+  const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', cur);
+  localStorage.setItem('theme', cur);
+  document.getElementById('themeIcon').textContent = cur === 'dark' ? '☀️' : '🌙';
+  document.getElementById('themeText').textContent = cur === 'dark' ? 'Light Mode' : 'Dark Mode';
+}
+
+// Init on load
+window.onload = () => {
+  const theme = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeIcon').textContent = theme === 'dark' ? '☀️' : '🌙';
+  document.getElementById('themeText').textContent = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
+  updateDT();
+  setInterval(updateDT, 1000);
+  persistLoad();
+  if (history.length > 0) {
+    document.getElementById('totalRecords').textContent = history.length;
+    const last = history[history.length - 1];
+    if (last) document.getElementById('lastUpdate').textContent = last.Waktu || '--';
+    updateHistoryTable();
+  }
+};
+</script>
+
+</body>
+</html>
